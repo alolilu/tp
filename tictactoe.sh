@@ -1,19 +1,21 @@
 declare -a board
+difficulty=""
 
 init_board() {
-    board=( " " " " " " " " " " " " " " " " )
+    board=( " " " " " " " " " " " " " " " " " " )
 }
 
 display_board() {
     echo "    A   B   C"
     echo "  +---+---+---+"
     for row in {0..2}; do
-        echo -n "$((row+1)) |"
+        printf "%d |" $((row+1))
         for col in {0..2}; do
             index=$((row*3 + col))
-            echo -n " ${board[$index]} |"
+            printf " %s |" "${board[$index]}"
         done
-        echo -e "\n  +---+---+---+"
+        echo ""
+        echo "  +---+---+---+"
     done
 }
 
@@ -69,17 +71,67 @@ parse_move() {
     fi
 }
 
-ai_move() {
+ai_move_easy() {
     local available_moves=()
-    for i in {0..8}; do
-        if [[ "${board[$i]}" == " " ]]; then
-            available_moves+=("$i")
+    for index in {0..8}; do
+        if [[ "${board[$index]}" == " " ]]; then
+            available_moves+=($index)
         fi
     done
     
-    local random_index=$((RANDOM % ${#available_moves[@]}))
-    echo "${available_moves[$random_index]}"
+    if [[ ${#available_moves[@]} -gt 0 ]]; then
+        echo ${available_moves[$((RANDOM % ${#available_moves[@]}))]}
+    else
+        echo -1
+    fi
 }
+
+ai_move_hard() {
+    local player=$1
+    local opponent=$2
+
+    for index in {0..8}; do
+        if [[ "${board[$index]}" == " " ]]; then
+            board[$index]=$player
+            if check_winner > /dev/null; then
+                board[$index]=" "
+                echo $index
+                return
+            fi
+            board[$index]=" "
+        fi
+    done
+
+    for index in {0..8}; do
+        if [[ "${board[$index]}" == " " ]]; then
+            board[$index]=$opponent
+            if check_winner > /dev/null; then
+                board[$index]=" "
+                echo $index
+                return
+            fi
+            board[$index]=" "
+        fi
+    done
+
+    local available_moves=()
+    for index in {0..8}; do
+        if [[ "${board[$index]}" == " " ]]; then
+            available_moves+=($index)
+        fi
+    done
+
+    if [[ ${#available_moves[@]} -gt 0 ]]; then
+        echo ${available_moves[$((RANDOM % ${#available_moves[@]}))]}
+    else
+        echo -1
+    fi
+}
+
+# Choix du niveau de difficulté
+echo "Choisissez le niveau de difficulté de l'IA (facile/difficile) :"
+read -r difficulty
+clear
 
 while true; do
     init_board
@@ -89,8 +141,9 @@ while true; do
     
     while true; do
         if [[ "$current_player" == "X" ]]; then
-            echo -n "Joueur X, entrez votre coup (ex: B2) : "
+            echo -n "Joueur $current_player, entrez votre coup (ex: B2) : "
             read -r move
+            
             index=$(parse_move "$move")
             while [[ $index -eq -1 || "${board[$index]}" != " " ]]; do
                 echo -n "Mouvement invalide, réessayez : "
@@ -98,9 +151,13 @@ while true; do
                 index=$(parse_move "$move")
             done
         else
-            echo "IA (O) joue..."
+            echo "L'IA réfléchit..."
             sleep 1
-            index=$(ai_move)
+            if [[ "$difficulty" == "facile" ]]; then
+                index=$(ai_move_easy)
+            else
+                index=$(ai_move_hard "O" "X")
+            fi
         fi
         
         board[$index]=$current_player
@@ -108,7 +165,11 @@ while true; do
         display_board
         
         if check_winner > /dev/null; then
-            echo "Le joueur $current_player a gagné !"
+            if [[ "$current_player" == "X" ]]; then
+                echo "Le joueur $current_player a gagné !"
+            else
+                echo "L'IA a gagné !"
+            fi
             break
         elif is_full; then
             echo "Match nul !"
@@ -121,6 +182,6 @@ while true; do
     echo "Voulez-vous rejouer ? (o/n)"
     read -r replay
     [[ "$replay" != "o" ]] && break
-
 done
+
 exit 0
